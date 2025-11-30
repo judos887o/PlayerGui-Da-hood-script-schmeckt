@@ -1,0 +1,244 @@
+--// SCHMECKT PLAYER PANEL v5 – FIX (JUMP + STAIRS) //--
+
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui          = game:GetService("CoreGui")
+local Workspace        = game:GetService("Workspace")
+
+local lp = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+-- State
+local state = {
+    SpeedVal     = 50,    -- Speed
+    IsNoclip     = false, -- Noclip Toggle
+    IsFly        = false, -- Fly Toggle
+    IsTPWalk     = false  -- TPWalk Toggle
+}
+
+--------------------------------------------------------------------
+-- GUI SETUP (Links Mitte)
+--------------------------------------------------------------------
+local old = CoreGui:FindFirstChild("SchmecktPlayerPanel")
+if old then old:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "SchmecktPlayerPanel"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = CoreGui
+
+local frame = Instance.new("Frame")
+frame.AnchorPoint = Vector2.new(0, 0.5)
+frame.Position = UDim2.new(0, 10, 0.5, 0)
+frame.Size = UDim2.new(0, 250, 0, 180)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+local stroke = Instance.new("UIStroke", frame)
+stroke.Color = Color3.fromRGB(255, 80, 80)
+stroke.Thickness = 1
+
+local title = Instance.new("TextLabel")
+title.BackgroundTransparency = 1
+title.Size = UDim2.new(1, -10, 0, 24)
+title.Position = UDim2.new(0, 8, 0, 4)
+title.Font = Enum.Font.GothamBold
+title.Text = lp.Name
+title.TextColor3 = Color3.new(1,1,1)
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = frame
+
+local content = Instance.new("Frame")
+content.BackgroundTransparency = 1
+content.Position = UDim2.new(0, 8, 0, 32)
+content.Size = UDim2.new(1, -16, 1, -40)
+content.Parent = frame
+
+local listLayout = Instance.new("UIListLayout", content)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 6)
+
+-- Helper: Toggle
+local function createToggle(text, default, callback)
+    local row = Instance.new("Frame")
+    row.BackgroundTransparency = 1
+    row.Size = UDim2.new(1, 0, 0, 26)
+    row.Parent = content
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(0.6, 0, 1, 0)
+    label.Font = Enum.Font.Gotham
+    label.TextColor3 = Color3.new(1,1,1)
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Text = text
+    label.Parent = row
+
+    local btn = Instance.new("TextButton")
+    btn.BackgroundColor3 = default and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(60, 60, 60)
+    btn.Size = UDim2.new(0, 44, 0, 22)
+    btn.Position = UDim2.new(1, -44, 0, 2)
+    btn.Text = ""
+    btn.Parent = row
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+
+    local active = default
+    btn.MouseButton1Click:Connect(function()
+        active = not active
+        btn.BackgroundColor3 = active and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(60, 60, 60)
+        callback(active)
+    end)
+end
+
+-- Helper: Input Box
+local wsRow = Instance.new("Frame")
+wsRow.BackgroundTransparency = 1
+wsRow.Size = UDim2.new(1, 0, 0, 26)
+wsRow.Parent = content
+
+local wsLabel = Instance.new("TextLabel")
+wsLabel.BackgroundTransparency = 1
+wsLabel.Size = UDim2.new(0.5, 0, 1, 0)
+wsLabel.Font = Enum.Font.Gotham
+wsLabel.Text = "Speed"
+wsLabel.TextColor3 = Color3.new(1,1,1)
+wsLabel.TextSize = 14
+wsLabel.TextXAlignment = Enum.TextXAlignment.Left
+wsLabel.Parent = wsRow
+
+local wsInput = Instance.new("TextBox")
+wsInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+wsInput.Size = UDim2.new(0.4, 0, 1, 0)
+wsInput.Position = UDim2.new(0.6, 0, 0, 0)
+wsInput.Font = Enum.Font.Gotham
+wsInput.TextColor3 = Color3.new(1,1,1)
+wsInput.TextSize = 14
+wsInput.Text = tostring(state.SpeedVal)
+wsInput.Parent = wsRow
+Instance.new("UICorner", wsInput).CornerRadius = UDim.new(0, 4)
+
+wsInput.FocusLost:Connect(function()
+    local num = tonumber(wsInput.Text)
+    if num then
+        state.SpeedVal = num
+    else
+        wsInput.Text = tostring(state.SpeedVal)
+    end
+end)
+
+createToggle("Enable TPWalk", false, function(val) state.IsTPWalk = val end)
+createToggle("Noclip", false, function(val) state.IsNoclip = val end)
+createToggle("Fly", false, function(val) state.IsFly = val end)
+
+--------------------------------------------------------------------
+-- LOGIK
+--------------------------------------------------------------------
+
+local flyBV, flyBG
+
+-- NOCLIP (Nur wenn Toggle an ODER Fly an)
+RunService.Stepped:Connect(function()
+    if not lp.Character then return end
+    
+    -- Wir erzwingen Noclip NICHT mehr bei TPWalk, damit man Treppen laufen kann.
+    -- Nur wenn der User explizit "Noclip" anmacht oder fliegt.
+    if state.IsNoclip or state.IsFly then
+        for _, part in pairs(lp.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- MOVEMENT
+RunService.Heartbeat:Connect(function(dt)
+    local char = lp.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChild("Humanoid")
+    if not root or not hum then return end
+
+    local camCF = camera.CFrame
+
+    -- FLY
+    if state.IsFly then
+        hum.PlatformStand = true
+        
+        if not flyBV then
+            flyBV = Instance.new("BodyVelocity", root)
+            flyBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        end
+        if not flyBG then
+            flyBG = Instance.new("BodyGyro", root)
+            flyBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+            flyBG.P = 9000
+        end
+
+        flyBG.CFrame = camCF
+
+        -- Input Fly
+        local moveDir = Vector3.new(0,0,0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camCF.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camCF.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camCF.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0,1,0) end
+
+        local speed = state.SpeedVal
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+            speed = speed * 5
+        end
+
+        if moveDir.Magnitude > 0 then
+            flyBV.Velocity = moveDir.Unit * speed
+        else
+            flyBV.Velocity = Vector3.new(0,0,0)
+        end
+
+    -- TPWALK (Nur wenn Fly aus ist)
+    elseif state.IsTPWalk then
+        -- Cleanup Fly
+        if flyBV then flyBV:Destroy(); flyBV = nil end
+        if flyBG then flyBG:Destroy(); flyBG = nil end
+        hum.PlatformStand = false
+
+        -- Input Walk
+        local moveDir = Vector3.new(0,0,0)
+        -- Wir nehmen nur X/Z von der Kamera, damit man nicht in den Boden drückt
+        local forward = camCF.LookVector * Vector3.new(1, 0, 1)
+        local right   = camCF.RightVector * Vector3.new(1, 0, 1)
+
+        if forward.Magnitude > 0 then forward = forward.Unit end
+        if right.Magnitude > 0 then right = right.Unit end
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - forward end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - right end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + right end
+
+        if moveDir.Magnitude > 0 then
+            -- Teleportieren
+            root.CFrame = root.CFrame + (moveDir.Unit * (state.SpeedVal * dt))
+            
+            -- WICHTIG: Wir behalten die Y-Velocity (Springen/Fallen)
+            -- Wir killen nur X/Z Velocity, damit Roblox uns nicht zurückzieht
+            local currentVel = root.AssemblyLinearVelocity
+            root.AssemblyLinearVelocity = Vector3.new(0, currentVel.Y, 0)
+        end
+
+    -- NORMAL
+    else
+        if flyBV then flyBV:Destroy(); flyBV = nil end
+        if flyBG then flyBG:Destroy(); flyBG = nil end
+        hum.PlatformStand = false
+    end
+end)
