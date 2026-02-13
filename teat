@@ -4,23 +4,34 @@ local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
 
 local lp = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 local Shared = getgenv().SchmecktHubPC or {}
 local key = "PlayerPanel"
 
-local SCALE = 1
-if Shared.Platform == "Mobile" then
-    SCALE = 1 / 2.2
+local IS_MOBILE = Shared.Platform == "Mobile" or UserInputService.TouchEnabled
+local SCALE = IS_MOBILE and 0.5 or 1
+
+local function s(v) return math.floor(v * SCALE) end
+
+local CLICK_SOUND_ID = "rbxassetid://100809160609628"
+local INTRO_LOGO_ASSET = "rbxassetid://121759217057084"
+
+local clickSound = SoundService:FindFirstChild("SchmecktClickSound")
+if not clickSound then
+    clickSound = Instance.new("Sound")
+    clickSound.Name = "SchmecktClickSound"
+    clickSound.SoundId = CLICK_SOUND_ID
+    clickSound.Volume = 0.5
+    clickSound.Parent = SoundService
 end
 
-local function scaleUDim(x, y)
-    return UDim2.new(0, x * SCALE, 0, y * SCALE)
-end
-
-local function scaleSize(s)
-    return math.floor(s * SCALE)
+local function playClick()
+    task.spawn(function()
+        pcall(function() clickSound:Stop() clickSound:Play() end)
+    end)
 end
 
 Shared.Connections = Shared.Connections or {}
@@ -41,19 +52,37 @@ local state = {
 local old = CoreGui:FindFirstChild("SchmecktPlayerPanel")
 if old then old:Destroy() end
 
-local Theme = {
-    Background = Color3.fromRGB(20, 5, 15),
-    Card = Color3.fromRGB(45, 12, 35),
-    Accent = Color3.fromRGB(255, 20, 147),
-    Purple = Color3.fromRGB(180, 50, 255),
-    PurpleLight = Color3.fromRGB(220, 130, 255),
+local COL = {
+    BgMain = Color3.fromRGB(90, 0, 0),
+    BgTop = Color3.fromRGB(140, 0, 0),
+    BgInner = Color3.fromRGB(120, 0, 0),
+    Card = Color3.fromRGB(135, 0, 0),
+    Stroke1 = Color3.fromRGB(255, 110, 110),
+    Stroke2 = Color3.fromRGB(255, 150, 150),
     Text = Color3.fromRGB(255, 255, 255),
-    SubText = Color3.fromRGB(255, 150, 180),
-    Stroke = Color3.fromRGB(150, 30, 100),
+    DevText = Color3.fromRGB(200, 160, 160),
+    SubText = Color3.fromRGB(255, 210, 210),
+    ToggleOff = Color3.fromRGB(175, 50, 120),
+    ToggleOn = Color3.fromRGB(220, 70, 160),
+    InputBg = Color3.fromRGB(110, 0, 0),
+    InputFocus = Color3.fromRGB(255, 80, 80),
 }
 
-local LOGO_ASSET = "rbxassetid://121759217057084"
-local LOGO2_ASSET = "rbxassetid://118676632373972"
+local function corner(inst, px)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, px or s(10))
+    c.Parent = inst
+    return c
+end
+
+local function strokeUI(inst, color, thickness, transparency)
+    local st = Instance.new("UIStroke")
+    st.Color = color
+    st.Thickness = thickness or 1
+    st.Transparency = transparency or 0
+    st.Parent = inst
+    return st
+end
 
 local noclipActive = false
 local defaultCollisions = setmetatable({}, {__mode = "k"})
@@ -65,142 +94,138 @@ gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = CoreGui
 
+local ROW_H = s(34)
+local GAP = s(5)
+local headerH = s(50)
+local speedRowH = s(38)
+local toggleCount = 3
+local contentPad = s(10)
+local contentInner = speedRowH + GAP + (ROW_H * toggleCount) + (GAP * (toggleCount - 1)) + contentPad * 2
+local panelW = s(260)
+local panelH = headerH + s(8) + contentInner + s(16)
+
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = scaleUDim(250, 210)
-MainFrame.Position = UDim2.new(0, 10 * SCALE, 0.5, -(105 * SCALE))
-MainFrame.BackgroundColor3 = Theme.Background
-MainFrame.BackgroundTransparency = 0.02
+MainFrame.Size = UDim2.new(0, panelW, 0, panelH)
+MainFrame.Position = UDim2.new(0, s(20), 0.5, -panelH/2)
+MainFrame.BackgroundColor3 = COL.BgMain
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = gui
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 14 * SCALE)
-
-local MainStroke = Instance.new("UIStroke")
-MainStroke.Thickness = 2 * SCALE
-MainStroke.Transparency = 0
-MainStroke.Parent = MainFrame
-
-local mainStrokeGrad = Instance.new("UIGradient")
-mainStrokeGrad.Rotation = 90
-mainStrokeGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 20, 147)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 50, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 20, 60))
-})
-mainStrokeGrad.Parent = MainStroke
+corner(MainFrame, s(14))
+strokeUI(MainFrame, COL.Stroke1, s(2), 0)
 
 local HeaderFrame = Instance.new("Frame")
-HeaderFrame.Name = "Header"
-HeaderFrame.Size = UDim2.new(1, 0, 0, 50 * SCALE)
-HeaderFrame.BackgroundColor3 = Theme.Card
+HeaderFrame.Size = UDim2.new(1, -s(14), 0, headerH)
+HeaderFrame.Position = UDim2.new(0, s(7), 0, s(7))
+HeaderFrame.BackgroundColor3 = COL.BgTop
 HeaderFrame.BorderSizePixel = 0
 HeaderFrame.Parent = MainFrame
-Instance.new("UICorner", HeaderFrame).CornerRadius = UDim.new(0, 14 * SCALE)
+corner(HeaderFrame, s(12))
+strokeUI(HeaderFrame, COL.Stroke2, 1, 0.15)
 
-local headerGlow = Instance.new("Frame")
-headerGlow.Size = UDim2.new(1, 0, 1, 0)
-headerGlow.BackgroundColor3 = Theme.Purple
-headerGlow.BackgroundTransparency = 0.88
-headerGlow.BorderSizePixel = 0
-headerGlow.Parent = HeaderFrame
-Instance.new("UICorner", headerGlow).CornerRadius = UDim.new(0, 14 * SCALE)
-
-local HeaderLogo1 = Instance.new("ImageLabel")
-HeaderLogo1.Size = scaleUDim(28, 28)
-HeaderLogo1.Position = UDim2.new(0, 10 * SCALE, 0.5, -(14 * SCALE))
-HeaderLogo1.BackgroundColor3 = Theme.Background
-HeaderLogo1.Image = LOGO_ASSET
-HeaderLogo1.ScaleType = Enum.ScaleType.Crop
-HeaderLogo1.Parent = HeaderFrame
-Instance.new("UICorner", HeaderLogo1).CornerRadius = UDim.new(0, 6 * SCALE)
-
-local HeaderX = Instance.new("TextLabel")
-HeaderX.Size = scaleUDim(14, 28)
-HeaderX.Position = UDim2.new(0, 40 * SCALE, 0.5, -(14 * SCALE))
-HeaderX.BackgroundTransparency = 1
-HeaderX.Text = "X"
-HeaderX.Font = Enum.Font.GothamBlack
-HeaderX.TextSize = scaleSize(10)
-HeaderX.TextColor3 = Theme.Purple
-HeaderX.Parent = HeaderFrame
-
-local HeaderLogo2 = Instance.new("ImageLabel")
-HeaderLogo2.Size = scaleUDim(24, 24)
-HeaderLogo2.Position = UDim2.new(0, 56 * SCALE, 0.5, -(12 * SCALE))
-HeaderLogo2.BackgroundTransparency = 1
-HeaderLogo2.Image = LOGO2_ASSET
-HeaderLogo2.ScaleType = Enum.ScaleType.Fit
-HeaderLogo2.Parent = HeaderFrame
-Instance.new("UICorner", HeaderLogo2).CornerRadius = UDim.new(1, 0)
-
-local HeaderText = Instance.new("TextLabel")
-HeaderText.Size = UDim2.new(1, -(90 * SCALE), 0, 18 * SCALE)
-HeaderText.Position = UDim2.new(0, 88 * SCALE, 0, 8 * SCALE)
-HeaderText.BackgroundTransparency = 1
-HeaderText.Text = "PLAYER PANEL"
-HeaderText.Font = Enum.Font.GothamBlack
-HeaderText.TextSize = scaleSize(11)
-HeaderText.TextColor3 = Theme.Accent
-HeaderText.TextXAlignment = Enum.TextXAlignment.Left
-HeaderText.Parent = HeaderFrame
-
-local headerTextGrad = Instance.new("UIGradient")
-headerTextGrad.Rotation = 0
-headerTextGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 20, 147)),
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 50, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 105, 180))
+local headerGrad = Instance.new("UIGradient")
+headerGrad.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(165, 0, 0)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 0, 0)),
 })
-headerTextGrad.Parent = HeaderText
+headerGrad.Parent = HeaderFrame
 
-local HeaderSub = Instance.new("TextLabel")
-HeaderSub.Size = UDim2.new(1, -(90 * SCALE), 0, 14 * SCALE)
-HeaderSub.Position = UDim2.new(0, 88 * SCALE, 0, 26 * SCALE)
-HeaderSub.BackgroundTransparency = 1
-HeaderSub.Text = lp.Name
-HeaderSub.Font = Enum.Font.GothamMedium
-HeaderSub.TextSize = scaleSize(9)
-HeaderSub.TextColor3 = Theme.SubText
-HeaderSub.TextXAlignment = Enum.TextXAlignment.Left
-HeaderSub.Parent = HeaderFrame
+local headerLogo = Instance.new("ImageLabel")
+headerLogo.Size = UDim2.new(0, s(30), 0, s(30))
+headerLogo.Position = UDim2.new(0, s(10), 0.5, -s(15))
+headerLogo.BackgroundTransparency = 1
+headerLogo.Image = INTRO_LOGO_ASSET
+headerLogo.ScaleType = Enum.ScaleType.Crop
+headerLogo.ZIndex = 4
+headerLogo.Parent = HeaderFrame
+corner(headerLogo, s(999))
+strokeUI(headerLogo, COL.Stroke2, 1, 0.3)
 
-local SpeedSection = Instance.new("Frame")
-SpeedSection.Name = "SpeedSection"
-SpeedSection.Size = UDim2.new(1, -(16 * SCALE), 0, 32 * SCALE)
-SpeedSection.Position = UDim2.new(0, 8 * SCALE, 0, 56 * SCALE)
-SpeedSection.BackgroundColor3 = Theme.Card
-SpeedSection.BorderSizePixel = 0
-SpeedSection.Parent = MainFrame
-Instance.new("UICorner", SpeedSection).CornerRadius = UDim.new(0, 8 * SCALE)
+local headerTitle = Instance.new("TextLabel")
+headerTitle.Size = UDim2.new(1, -s(55), 0, s(20))
+headerTitle.Position = UDim2.new(0, s(48), 0, s(6))
+headerTitle.BackgroundTransparency = 1
+headerTitle.Text = "PLAYER PANEL"
+headerTitle.Font = Enum.Font.GothamBlack
+headerTitle.TextSize = s(12)
+headerTitle.TextColor3 = COL.Text
+headerTitle.TextXAlignment = Enum.TextXAlignment.Left
+headerTitle.ZIndex = 4
+headerTitle.Parent = HeaderFrame
 
-local SpeedStroke = Instance.new("UIStroke")
-SpeedStroke.Color = Theme.Stroke
-SpeedStroke.Thickness = 1.5 * SCALE
-SpeedStroke.Transparency = 0.3
-SpeedStroke.Parent = SpeedSection
+local headerSub = Instance.new("TextLabel")
+headerSub.Size = UDim2.new(1, -s(55), 0, s(14))
+headerSub.Position = UDim2.new(0, s(48), 0, s(28))
+headerSub.BackgroundTransparency = 1
+headerSub.Text = lp.Name
+headerSub.Font = Enum.Font.Gotham
+headerSub.TextSize = s(10)
+headerSub.TextColor3 = COL.SubText
+headerSub.TextXAlignment = Enum.TextXAlignment.Left
+headerSub.ZIndex = 4
+headerSub.Parent = HeaderFrame
+
+local contentY = headerH + s(14)
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, -s(14), 0, contentInner)
+ContentFrame.Position = UDim2.new(0, s(7), 0, contentY)
+ContentFrame.BackgroundColor3 = COL.BgInner
+ContentFrame.BorderSizePixel = 0
+ContentFrame.Parent = MainFrame
+corner(ContentFrame, s(12))
+strokeUI(ContentFrame, COL.Stroke2, 1, 0.25)
+
+local InnerContainer = Instance.new("Frame")
+InnerContainer.Size = UDim2.new(1, -contentPad * 2, 1, -contentPad * 2)
+InnerContainer.Position = UDim2.new(0, contentPad, 0, contentPad)
+InnerContainer.BackgroundTransparency = 1
+InnerContainer.Parent = ContentFrame
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Padding = UDim.new(0, GAP)
+ListLayout.Parent = InnerContainer
+
+local SpeedRow = Instance.new("Frame")
+SpeedRow.Size = UDim2.new(1, 0, 0, speedRowH)
+SpeedRow.BackgroundColor3 = COL.Card
+SpeedRow.BorderSizePixel = 0
+SpeedRow.LayoutOrder = 0
+SpeedRow.Parent = InnerContainer
+corner(SpeedRow, s(8))
+strokeUI(SpeedRow, COL.Stroke2, 1, 0.4)
 
 local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(0, 50 * SCALE, 1, 0)
-SpeedLabel.Position = UDim2.new(0, 12 * SCALE, 0, 0)
+SpeedLabel.Size = UDim2.new(0.5, -s(10), 1, 0)
+SpeedLabel.Position = UDim2.new(0, s(12), 0, 0)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "Speed"
-SpeedLabel.Font = Enum.Font.GothamBold
-SpeedLabel.TextSize = scaleSize(11)
-SpeedLabel.TextColor3 = Theme.Text
+SpeedLabel.Font = Enum.Font.GothamSemibold
+SpeedLabel.TextSize = s(12)
+SpeedLabel.TextColor3 = COL.Text
 SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-SpeedLabel.Parent = SpeedSection
+SpeedLabel.ZIndex = 5
+SpeedLabel.Parent = SpeedRow
 
 local SpeedInput = Instance.new("TextBox")
-SpeedInput.Size = scaleUDim(60, 20)
-SpeedInput.Position = UDim2.new(1, -(68 * SCALE), 0.5, -(10 * SCALE))
-SpeedInput.BackgroundColor3 = Color3.fromRGB(30, 10, 20)
+SpeedInput.Size = UDim2.new(0, s(70), 0, s(26))
+SpeedInput.Position = UDim2.new(1, -s(78), 0.5, -s(13))
+SpeedInput.BackgroundColor3 = COL.InputBg
 SpeedInput.BorderSizePixel = 0
-SpeedInput.Font = Enum.Font.GothamMedium
-SpeedInput.TextColor3 = Theme.Text
-SpeedInput.TextSize = scaleSize(11)
+SpeedInput.Font = Enum.Font.GothamSemibold
+SpeedInput.TextColor3 = COL.Text
+SpeedInput.TextSize = s(12)
 SpeedInput.Text = tostring(state.SpeedVal)
-SpeedInput.Parent = SpeedSection
-Instance.new("UICorner", SpeedInput).CornerRadius = UDim.new(0, 6 * SCALE)
+SpeedInput.ZIndex = 6
+SpeedInput.Parent = SpeedRow
+corner(SpeedInput, s(6))
+local speedStroke = strokeUI(SpeedInput, COL.Stroke2, 1, 0.4)
+
+SpeedInput.Focused:Connect(function()
+    playClick()
+    TweenService:Create(speedStroke, TweenInfo.new(0.2), {Color = COL.InputFocus}):Play()
+end)
 
 SpeedInput.FocusLost:Connect(function()
     local num = tonumber(SpeedInput.Text)
@@ -209,148 +234,78 @@ SpeedInput.FocusLost:Connect(function()
     else
         SpeedInput.Text = tostring(state.SpeedVal)
     end
+    TweenService:Create(speedStroke, TweenInfo.new(0.2), {Color = COL.Stroke2}):Play()
 end)
 
-local ButtonContainer = Instance.new("Frame")
-ButtonContainer.Name = "ButtonContainer"
-ButtonContainer.Size = UDim2.new(1, -(16 * SCALE), 0, 108 * SCALE)
-ButtonContainer.Position = UDim2.new(0, 8 * SCALE, 0, 94 * SCALE)
-ButtonContainer.BackgroundTransparency = 1
-ButtonContainer.Parent = MainFrame
+local TOGGLE_W = s(60)
+local TOGGLE_H = s(24)
 
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.Padding = UDim.new(0, 6 * SCALE)
-ListLayout.Parent = ButtonContainer
+local function CreateToggleButton(text, sharedKey, order)
+    local Row = Instance.new("Frame")
+    Row.Size = UDim2.new(1, 0, 0, ROW_H)
+    Row.BackgroundColor3 = COL.Card
+    Row.BorderSizePixel = 0
+    Row.LayoutOrder = order
+    Row.Parent = InnerContainer
+    corner(Row, s(8))
+    strokeUI(Row, COL.Stroke2, 1, 0.4)
 
-local function CreateToggleButton(text, sharedKey)
-    local BtnFrame = Instance.new("Frame")
-    BtnFrame.Size = UDim2.new(1, 0, 0, 32 * SCALE)
-    BtnFrame.BackgroundColor3 = Theme.Card
-    BtnFrame.BorderSizePixel = 0
-    BtnFrame.Parent = ButtonContainer
-    Instance.new("UICorner", BtnFrame).CornerRadius = UDim.new(0, 8 * SCALE)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -(TOGGLE_W + s(24)), 1, 0)
+    Label.Position = UDim2.new(0, s(12), 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.Font = Enum.Font.GothamSemibold
+    Label.TextSize = s(12)
+    Label.TextColor3 = COL.Text
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.ZIndex = 5
+    Label.Parent = Row
 
-    local BtnStroke = Instance.new("UIStroke")
-    BtnStroke.Color = state[sharedKey] and Theme.Purple or Theme.Stroke
-    BtnStroke.Thickness = 1.5 * SCALE
-    BtnStroke.Transparency = state[sharedKey] and 0 or 0.3
-    BtnStroke.Parent = BtnFrame
+    local Pill = Instance.new("TextButton")
+    Pill.AutoButtonColor = false
+    Pill.AnchorPoint = Vector2.new(1, 0.5)
+    Pill.Position = UDim2.new(1, -s(8), 0.5, 0)
+    Pill.Size = UDim2.new(0, TOGGLE_W, 0, TOGGLE_H)
+    Pill.Font = Enum.Font.GothamBold
+    Pill.TextSize = s(10)
+    Pill.TextColor3 = COL.Text
+    Pill.ZIndex = 6
+    Pill.Parent = Row
+    corner(Pill, s(999))
 
-    local TextLabel = Instance.new("TextLabel")
-    TextLabel.Size = UDim2.new(1, -(55 * SCALE), 1, 0)
-    TextLabel.Position = UDim2.new(0, 12 * SCALE, 0, 0)
-    TextLabel.BackgroundTransparency = 1
-    TextLabel.Text = text
-    TextLabel.Font = Enum.Font.GothamBold
-    TextLabel.TextSize = scaleSize(11)
-    TextLabel.TextColor3 = Theme.Text
-    TextLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TextLabel.Parent = BtnFrame
+    local function refresh()
+        local on = state[sharedKey]
+        Pill.BackgroundColor3 = on and COL.ToggleOn or COL.ToggleOff
+        Pill.Text = on and "ON" or "OFF"
+    end
+    refresh()
 
-    local ToggleBg = Instance.new("Frame")
-    ToggleBg.Size = scaleUDim(36, 18)
-    ToggleBg.Position = UDim2.new(1, -(44 * SCALE), 0.5, -(9 * SCALE))
-    ToggleBg.BackgroundColor3 = state[sharedKey] and Theme.Purple or Color3.fromRGB(40, 20, 30)
-    ToggleBg.BorderSizePixel = 0
-    ToggleBg.Parent = BtnFrame
-    Instance.new("UICorner", ToggleBg).CornerRadius = UDim.new(1, 0)
-
-    local ToggleCircle = Instance.new("Frame")
-    ToggleCircle.Size = scaleUDim(14, 14)
-    ToggleCircle.Position = state[sharedKey] and UDim2.new(0, 20 * SCALE, 0.5, -(7 * SCALE)) or UDim2.new(0, 2 * SCALE, 0.5, -(7 * SCALE))
-    ToggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ToggleCircle.BorderSizePixel = 0
-    ToggleCircle.Parent = ToggleBg
-    Instance.new("UICorner", ToggleCircle).CornerRadius = UDim.new(1, 0)
-
-    local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(1, 0, 1, 0)
-    Button.BackgroundTransparency = 1
-    Button.Text = ""
-    Button.Parent = BtnFrame
-
-    Button.MouseButton1Click:Connect(function()
+    Pill.MouseButton1Click:Connect(function()
+        playClick()
         state[sharedKey] = not state[sharedKey]
-        local enabled = state[sharedKey]
-        TweenService:Create(ToggleCircle, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-            Position = enabled and UDim2.new(0, 20 * SCALE, 0.5, -(7 * SCALE)) or UDim2.new(0, 2 * SCALE, 0.5, -(7 * SCALE))
-        }):Play()
-        TweenService:Create(ToggleBg, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
-            BackgroundColor3 = enabled and Theme.Purple or Color3.fromRGB(40, 20, 30)
-        }):Play()
-        TweenService:Create(BtnStroke, TweenInfo.new(0.2), {
-            Color = enabled and Theme.Purple or Theme.Stroke,
-            Transparency = enabled and 0 or 0.3
-        }):Play()
+        refresh()
     end)
 
-    Button.MouseEnter:Connect(function()
-        if not state[sharedKey] then
-            TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Color = Theme.Purple, Transparency = 0}):Play()
-        end
-    end)
-    Button.MouseLeave:Connect(function()
-        if not state[sharedKey] then
-            TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Color = Theme.Stroke, Transparency = 0.3}):Play()
-        end
-    end)
-
-    return BtnFrame
+    return Row
 end
 
-CreateToggleButton("TPWalk", "IsTPWalk")
-CreateToggleButton("Noclip", "IsNoclip")
-CreateToggleButton("Fly", "IsFly")
-
-local mainColorPhase = 0
-local lastColorUpdate = 0
-local colorConn = RunService.Heartbeat:Connect(function(dt)
-    if not MainFrame.Parent then
-        colorConn:Disconnect()
-        return
-    end
-    lastColorUpdate = lastColorUpdate + dt
-    if lastColorUpdate < 0.05 then return end
-    lastColorUpdate = 0
-    mainColorPhase = (mainColorPhase + 0.05 * 0.6) % 1
-    local function lerpColor(t)
-        local colors = {
-            Color3.fromRGB(255, 20, 147),
-            Color3.fromRGB(220, 20, 60),
-            Color3.fromRGB(180, 50, 255),
-            Color3.fromRGB(255, 105, 180),
-        }
-        local index = math.floor(t * #colors) + 1
-        local nextIndex = (index % #colors) + 1
-        local localT = (t * #colors) % 1
-        return colors[index]:Lerp(colors[nextIndex], localT)
-    end
-    local o1 = mainColorPhase
-    local o2 = (mainColorPhase + 0.33) % 1
-    local o3 = (mainColorPhase + 0.66) % 1
-    mainStrokeGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, lerpColor(o1)),
-        ColorSequenceKeypoint.new(0.5, lerpColor(o2)),
-        ColorSequenceKeypoint.new(1, lerpColor(o3))
-    })
-    headerTextGrad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, lerpColor(o1)),
-        ColorSequenceKeypoint.new(0.5, lerpColor(o2)),
-        ColorSequenceKeypoint.new(1, lerpColor(o3))
-    })
-end)
-table.insert(Shared.Connections[key], colorConn)
+CreateToggleButton("TPWalk", "IsTPWalk", 1)
+CreateToggleButton("Noclip", "IsNoclip", 2)
+CreateToggleButton("Fly", "IsFly", 3)
 
 local dragging, dragInput, dragStart, startPos
-MainFrame.InputBegan:Connect(function(input)
+HeaderFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
     end
 end)
-MainFrame.InputChanged:Connect(function(input)
+HeaderFrame.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
         dragInput = input
     end
@@ -361,14 +316,10 @@ UserInputService.InputChanged:Connect(function(input)
         MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
 
+local FINAL_SIZE = UDim2.new(0, panelW, 0, panelH)
 MainFrame.Size = UDim2.new(0, 0, 0, 0)
-TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = scaleUDim(250, 210)}):Play()
+TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = FINAL_SIZE}):Play()
 
 local function applyNoclipState(char, enabled)
     for _, p in ipairs(char:GetDescendants()) do
