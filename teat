@@ -273,7 +273,6 @@ local function CreateToggleButton(text, sharedKey)
     Button.MouseButton1Click:Connect(function()
         state[sharedKey] = not state[sharedKey]
         local enabled = state[sharedKey]
-
         TweenService:Create(ToggleCircle, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
             Position = enabled and UDim2.new(0, 20 * SCALE, 0.5, -(7 * SCALE)) or UDim2.new(0, 2 * SCALE, 0.5, -(7 * SCALE))
         }):Play()
@@ -291,7 +290,6 @@ local function CreateToggleButton(text, sharedKey)
             TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Color = Theme.Purple, Transparency = 0}):Play()
         end
     end)
-
     Button.MouseLeave:Connect(function()
         if not state[sharedKey] then
             TweenService:Create(BtnStroke, TweenInfo.new(0.15), {Color = Theme.Stroke, Transparency = 0.3}):Play()
@@ -306,14 +304,16 @@ CreateToggleButton("Noclip", "IsNoclip")
 CreateToggleButton("Fly", "IsFly")
 
 local mainColorPhase = 0
-local mainColorConnection = RunService.Heartbeat:Connect(function(dt)
+local lastColorUpdate = 0
+local colorConn = RunService.Heartbeat:Connect(function(dt)
     if not MainFrame.Parent then
-        if mainColorConnection then
-            mainColorConnection:Disconnect()
-        end
+        colorConn:Disconnect()
         return
     end
-    mainColorPhase = (mainColorPhase + dt * 0.6) % 1
+    lastColorUpdate = lastColorUpdate + dt
+    if lastColorUpdate < 0.05 then return end
+    lastColorUpdate = 0
+    mainColorPhase = (mainColorPhase + 0.05 * 0.6) % 1
     local function lerpColor(t)
         local colors = {
             Color3.fromRGB(255, 20, 147),
@@ -340,7 +340,7 @@ local mainColorConnection = RunService.Heartbeat:Connect(function(dt)
         ColorSequenceKeypoint.new(1, lerpColor(o3))
     })
 end)
-table.insert(Shared.Connections[key], mainColorConnection)
+table.insert(Shared.Connections[key], colorConn)
 
 local dragging, dragInput, dragStart, startPos
 MainFrame.InputBegan:Connect(function(input)
@@ -384,15 +384,18 @@ local function applyNoclipState(char, enabled)
     end
 end
 
-table.insert(Shared.Connections[key], RunService.Stepped:Connect(function()
+local lastNoclipCheck = 0
+table.insert(Shared.Connections[key], RunService.Stepped:Connect(function(_, dt)
     if not Shared.PlayerPanel then
         gui.Enabled = false
         return
     end
     gui.Enabled = true
+    lastNoclipCheck = lastNoclipCheck + dt
+    if lastNoclipCheck < 0.1 then return end
+    lastNoclipCheck = 0
     local char = lp.Character
     if not char then return end
-
     if state.IsNoclip or state.IsFly then
         applyNoclipState(char, true)
     else
@@ -417,30 +420,23 @@ table.insert(Shared.Connections[key], RunService.Heartbeat:Connect(function(dt)
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camCF.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir = moveDir - Vector3.new(0, 1, 0) end
-
         local speed = state.SpeedVal
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 2 end
-
         if moveDir.Magnitude > 0 then
             root.CFrame = root.CFrame + (moveDir.Unit * speed * dt)
         end
-
         root.AssemblyLinearVelocity = Vector3.zero
-        
     elseif state.IsTPWalk then
         hum.PlatformStand = false
-
         local moveDir = Vector3.new(0, 0, 0)
         local forward = camCF.LookVector * Vector3.new(1, 0, 1)
         local right = camCF.RightVector * Vector3.new(1, 0, 1)
         if forward.Magnitude > 0 then forward = forward.Unit end
         if right.Magnitude > 0 then right = right.Unit end
-
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + forward end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - forward end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - right end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + right end
-
         if moveDir.Magnitude > 0 then
             root.CFrame = root.CFrame + (moveDir.Unit * (state.SpeedVal * dt))
             local currentVel = root.AssemblyLinearVelocity
