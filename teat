@@ -12,8 +12,7 @@ local Shared = getgenv().SchmecktHubPC or {}
 local key = "PlayerPanel"
 
 local IS_MOBILE = Shared.Platform == "Mobile" or UserInputService.TouchEnabled
-local SCALE = IS_MOBILE and 0.5 or 1
-
+local SCALE = IS_MOBILE and (1 / 2.2) or 1
 local function s(v) return math.floor(v * SCALE) end
 
 local CLICK_SOUND_ID = "rbxassetid://100809160609628"
@@ -29,9 +28,7 @@ if not clickSound then
 end
 
 local function playClick()
-    task.spawn(function()
-        pcall(function() clickSound:Stop() clickSound:Play() end)
-    end)
+    task.spawn(function() pcall(function() clickSound:Stop() clickSound:Play() end) end)
 end
 
 Shared.Connections = Shared.Connections or {}
@@ -53,36 +50,19 @@ local old = CoreGui:FindFirstChild("SchmecktPlayerPanel")
 if old then old:Destroy() end
 
 local COL = {
-    BgMain = Color3.fromRGB(90, 0, 0),
-    BgTop = Color3.fromRGB(140, 0, 0),
-    BgInner = Color3.fromRGB(120, 0, 0),
-    Card = Color3.fromRGB(135, 0, 0),
-    Stroke1 = Color3.fromRGB(255, 110, 110),
-    Stroke2 = Color3.fromRGB(255, 150, 150),
-    Text = Color3.fromRGB(255, 255, 255),
-    DevText = Color3.fromRGB(200, 160, 160),
-    SubText = Color3.fromRGB(255, 210, 210),
-    ToggleOff = Color3.fromRGB(175, 50, 120),
-    ToggleOn = Color3.fromRGB(220, 70, 160),
-    InputBg = Color3.fromRGB(110, 0, 0),
-    InputFocus = Color3.fromRGB(255, 80, 80),
+    BgMain = Color3.fromRGB(14, 10, 10),
+    StrokeMain = Color3.fromRGB(150, 30, 30),
+    Div = Color3.fromRGB(60, 15, 15),
+    RowBg = Color3.fromRGB(20, 14, 14),
+    RowStroke = Color3.fromRGB(50, 20, 20),
+    TextOn = Color3.fromRGB(255, 255, 255),
+    TextOff = Color3.fromRGB(160, 120, 120),
+    ToggleBgOn = Color3.fromRGB(200, 40, 40),
+    ToggleBgOff = Color3.fromRGB(40, 20, 20),
+    Dot = Color3.fromRGB(255, 255, 255),
+    InputBg = Color3.fromRGB(30, 15, 15),
+    InputFocus = Color3.fromRGB(255, 60, 60),
 }
-
-local function corner(inst, px)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, px or s(10))
-    c.Parent = inst
-    return c
-end
-
-local function strokeUI(inst, color, thickness, transparency)
-    local st = Instance.new("UIStroke")
-    st.Color = color
-    st.Thickness = thickness or 1
-    st.Transparency = transparency or 0
-    st.Parent = inst
-    return st
-end
 
 local noclipActive = false
 local defaultCollisions = setmetatable({}, {__mode = "k"})
@@ -94,137 +74,92 @@ gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = CoreGui
 
-local ROW_H = s(34)
-local GAP = s(5)
-local headerH = s(50)
-local speedRowH = s(38)
+local ROW_H = s(36)
+local GAP = s(6)
+local headerH = s(40)
+local speedRowH = s(36)
 local toggleCount = 3
 local contentPad = s(10)
 local contentInner = speedRowH + GAP + (ROW_H * toggleCount) + (GAP * (toggleCount - 1)) + contentPad * 2
-local panelW = s(260)
-local panelH = headerH + s(8) + contentInner + s(16)
+local panelW = s(250)
+local panelH = headerH + contentInner + s(2)
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, panelW, 0, panelH)
-MainFrame.Position = UDim2.new(0, s(20), 0.5, -panelH/2)
+MainFrame.Position = UDim2.new(0, s(40), 0.5, -panelH/2)
 MainFrame.BackgroundColor3 = COL.BgMain
 MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
 MainFrame.Parent = gui
-corner(MainFrame, s(14))
-strokeUI(MainFrame, COL.Stroke1, s(2), 0)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, s(8))
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = COL.StrokeMain
+MainStroke.Thickness = 1
 
-local HeaderFrame = Instance.new("Frame")
-HeaderFrame.Size = UDim2.new(1, -s(14), 0, headerH)
-HeaderFrame.Position = UDim2.new(0, s(7), 0, s(7))
-HeaderFrame.BackgroundColor3 = COL.BgTop
-HeaderFrame.BorderSizePixel = 0
-HeaderFrame.Parent = MainFrame
-corner(HeaderFrame, s(12))
-strokeUI(HeaderFrame, COL.Stroke2, 1, 0.15)
+local PanelTitle = Instance.new("TextLabel", MainFrame)
+PanelTitle.Size = UDim2.new(1, -s(20), 0, s(40))
+PanelTitle.Position = UDim2.new(0, s(16), 0, 0)
+PanelTitle.BackgroundTransparency = 1
+PanelTitle.Text = "Player Panel"
+PanelTitle.TextColor3 = COL.TextOn
+PanelTitle.Font = Enum.Font.GothamBold
+PanelTitle.TextSize = s(14)
+PanelTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-local headerGrad = Instance.new("UIGradient")
-headerGrad.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(165, 0, 0)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 0, 0)),
-})
-headerGrad.Parent = HeaderFrame
+local PanelDiv = Instance.new("Frame", MainFrame)
+PanelDiv.Size = UDim2.new(1, 0, 0, math.max(1, s(1)))
+PanelDiv.Position = UDim2.new(0, 0, 0, s(40))
+PanelDiv.BackgroundColor3 = COL.Div
+PanelDiv.BorderSizePixel = 0
 
-local headerLogo = Instance.new("ImageLabel")
-headerLogo.Size = UDim2.new(0, s(30), 0, s(30))
-headerLogo.Position = UDim2.new(0, s(10), 0.5, -s(15))
-headerLogo.BackgroundTransparency = 1
-headerLogo.Image = INTRO_LOGO_ASSET
-headerLogo.ScaleType = Enum.ScaleType.Crop
-headerLogo.ZIndex = 4
-headerLogo.Parent = HeaderFrame
-corner(headerLogo, s(999))
-strokeUI(headerLogo, COL.Stroke2, 1, 0.3)
-
-local headerTitle = Instance.new("TextLabel")
-headerTitle.Size = UDim2.new(1, -s(55), 0, s(20))
-headerTitle.Position = UDim2.new(0, s(48), 0, s(6))
-headerTitle.BackgroundTransparency = 1
-headerTitle.Text = "PLAYER PANEL"
-headerTitle.Font = Enum.Font.GothamBlack
-headerTitle.TextSize = s(12)
-headerTitle.TextColor3 = COL.Text
-headerTitle.TextXAlignment = Enum.TextXAlignment.Left
-headerTitle.ZIndex = 4
-headerTitle.Parent = HeaderFrame
-
-local headerSub = Instance.new("TextLabel")
-headerSub.Size = UDim2.new(1, -s(55), 0, s(14))
-headerSub.Position = UDim2.new(0, s(48), 0, s(28))
-headerSub.BackgroundTransparency = 1
-headerSub.Text = lp.Name
-headerSub.Font = Enum.Font.Gotham
-headerSub.TextSize = s(10)
-headerSub.TextColor3 = COL.SubText
-headerSub.TextXAlignment = Enum.TextXAlignment.Left
-headerSub.ZIndex = 4
-headerSub.Parent = HeaderFrame
-
-local contentY = headerH + s(14)
-
-local ContentFrame = Instance.new("Frame")
-ContentFrame.Size = UDim2.new(1, -s(14), 0, contentInner)
-ContentFrame.Position = UDim2.new(0, s(7), 0, contentY)
-ContentFrame.BackgroundColor3 = COL.BgInner
-ContentFrame.BorderSizePixel = 0
-ContentFrame.Parent = MainFrame
-corner(ContentFrame, s(12))
-strokeUI(ContentFrame, COL.Stroke2, 1, 0.25)
-
-local InnerContainer = Instance.new("Frame")
-InnerContainer.Size = UDim2.new(1, -contentPad * 2, 1, -contentPad * 2)
-InnerContainer.Position = UDim2.new(0, contentPad, 0, contentPad)
+local InnerContainer = Instance.new("Frame", MainFrame)
+InnerContainer.Size = UDim2.new(1, 0, 1, -s(41))
+InnerContainer.Position = UDim2.new(0, 0, 0, s(41))
 InnerContainer.BackgroundTransparency = 1
-InnerContainer.Parent = ContentFrame
+InnerContainer.Parent = MainFrame
 
-local ListLayout = Instance.new("UIListLayout")
+local ListLayout = Instance.new("UIListLayout", InnerContainer)
 ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.Padding = UDim.new(0, GAP)
-ListLayout.Parent = InnerContainer
+ListLayout.Padding = UDim.new(0, s(6))
+ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Instance.new("UIPadding", InnerContainer).PaddingTop = UDim.new(0, s(10))
 
-local SpeedRow = Instance.new("Frame")
-SpeedRow.Size = UDim2.new(1, 0, 0, speedRowH)
-SpeedRow.BackgroundColor3 = COL.Card
-SpeedRow.BorderSizePixel = 0
+local SpeedRow = Instance.new("Frame", InnerContainer)
+SpeedRow.Size = UDim2.new(0.9, 0, 0, speedRowH)
+SpeedRow.BackgroundColor3 = COL.RowBg
 SpeedRow.LayoutOrder = 0
-SpeedRow.Parent = InnerContainer
-corner(SpeedRow, s(8))
-strokeUI(SpeedRow, COL.Stroke2, 1, 0.4)
+Instance.new("UICorner", SpeedRow).CornerRadius = UDim.new(0, s(6))
+local SpeedStroke = Instance.new("UIStroke", SpeedRow)
+SpeedStroke.Color = COL.RowStroke
 
-local SpeedLabel = Instance.new("TextLabel")
+local SpeedLabel = Instance.new("TextLabel", SpeedRow)
 SpeedLabel.Size = UDim2.new(0.5, -s(10), 1, 0)
 SpeedLabel.Position = UDim2.new(0, s(12), 0, 0)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "Speed"
 SpeedLabel.Font = Enum.Font.GothamSemibold
-SpeedLabel.TextSize = s(12)
-SpeedLabel.TextColor3 = COL.Text
+SpeedLabel.TextSize = s(13)
+SpeedLabel.TextColor3 = COL.TextOn
 SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-SpeedLabel.ZIndex = 5
-SpeedLabel.Parent = SpeedRow
 
-local SpeedInput = Instance.new("TextBox")
-SpeedInput.Size = UDim2.new(0, s(70), 0, s(26))
-SpeedInput.Position = UDim2.new(1, -s(78), 0.5, -s(13))
+local SpeedInput = Instance.new("TextBox", SpeedRow)
+SpeedInput.Size = UDim2.new(0, s(70), 0, s(22))
+SpeedInput.Position = UDim2.new(1, -s(80), 0.5, -s(11))
 SpeedInput.BackgroundColor3 = COL.InputBg
 SpeedInput.BorderSizePixel = 0
-SpeedInput.Font = Enum.Font.GothamSemibold
-SpeedInput.TextColor3 = COL.Text
+SpeedInput.Font = Enum.Font.GothamBold
+SpeedInput.TextColor3 = COL.TextOn
 SpeedInput.TextSize = s(12)
 SpeedInput.Text = tostring(state.SpeedVal)
-SpeedInput.ZIndex = 6
-SpeedInput.Parent = SpeedRow
-corner(SpeedInput, s(6))
-local speedStroke = strokeUI(SpeedInput, COL.Stroke2, 1, 0.4)
+Instance.new("UICorner", SpeedInput).CornerRadius = UDim.new(0, s(4))
+local InputStroke = Instance.new("UIStroke", SpeedInput)
+InputStroke.Color = COL.RowStroke
 
 SpeedInput.Focused:Connect(function()
     playClick()
-    TweenService:Create(speedStroke, TweenInfo.new(0.2), {Color = COL.InputFocus}):Play()
+    TweenService:Create(InputStroke, TweenInfo.new(0.2), {Color = COL.InputFocus}):Play()
 end)
 
 SpeedInput.FocusLost:Connect(function()
@@ -234,60 +169,53 @@ SpeedInput.FocusLost:Connect(function()
     else
         SpeedInput.Text = tostring(state.SpeedVal)
     end
-    TweenService:Create(speedStroke, TweenInfo.new(0.2), {Color = COL.Stroke2}):Play()
+    TweenService:Create(InputStroke, TweenInfo.new(0.2), {Color = COL.RowStroke}):Play()
 end)
 
-local TOGGLE_W = s(60)
-local TOGGLE_H = s(24)
-
 local function CreateToggleButton(text, sharedKey, order)
-    local Row = Instance.new("Frame")
-    Row.Size = UDim2.new(1, 0, 0, ROW_H)
-    Row.BackgroundColor3 = COL.Card
-    Row.BorderSizePixel = 0
+    local Row = Instance.new("Frame", InnerContainer)
+    Row.Size = UDim2.new(0.9, 0, 0, ROW_H)
+    Row.BackgroundColor3 = COL.RowBg
     Row.LayoutOrder = order
-    Row.Parent = InnerContainer
-    corner(Row, s(8))
-    strokeUI(Row, COL.Stroke2, 1, 0.4)
+    Instance.new("UICorner", Row).CornerRadius = UDim.new(0, s(6))
+    Instance.new("UIStroke", Row).Color = COL.RowStroke
 
-    local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(1, -(TOGGLE_W + s(24)), 1, 0)
+    local Label = Instance.new("TextLabel", Row)
+    Label.Size = UDim2.new(0.65, 0, 1, 0)
     Label.Position = UDim2.new(0, s(12), 0, 0)
     Label.BackgroundTransparency = 1
     Label.Text = text
     Label.Font = Enum.Font.GothamSemibold
-    Label.TextSize = s(12)
-    Label.TextColor3 = COL.Text
+    Label.TextSize = s(13)
+    Label.TextColor3 = state[sharedKey] and COL.TextOn or COL.TextOff
     Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.ZIndex = 5
-    Label.Parent = Row
 
-    local Pill = Instance.new("TextButton")
-    Pill.AutoButtonColor = false
-    Pill.AnchorPoint = Vector2.new(1, 0.5)
-    Pill.Position = UDim2.new(1, -s(8), 0.5, 0)
-    Pill.Size = UDim2.new(0, TOGGLE_W, 0, TOGGLE_H)
-    Pill.Font = Enum.Font.GothamBold
-    Pill.TextSize = s(10)
-    Pill.TextColor3 = COL.Text
-    Pill.ZIndex = 6
-    Pill.Parent = Row
-    corner(Pill, s(999))
+    local ToggleBg = Instance.new("Frame", Row)
+    ToggleBg.Size = UDim2.new(0, s(40), 0, s(20))
+    ToggleBg.Position = UDim2.new(1, -s(50), 0.5, -s(10))
+    ToggleBg.BackgroundColor3 = state[sharedKey] and COL.ToggleBgOn or COL.ToggleBgOff
+    Instance.new("UICorner", ToggleBg).CornerRadius = UDim.new(1, 0)
 
-    local function refresh()
-        local on = state[sharedKey]
-        Pill.BackgroundColor3 = on and COL.ToggleOn or COL.ToggleOff
-        Pill.Text = on and "ON" or "OFF"
-    end
-    refresh()
+    local ToggleDot = Instance.new("Frame", ToggleBg)
+    ToggleDot.Size = UDim2.new(0, s(14), 0, s(14))
+    ToggleDot.Position = state[sharedKey] and UDim2.new(0, s(23), 0.5, -s(7)) or UDim2.new(0, s(3), 0.5, -s(7))
+    ToggleDot.BackgroundColor3 = COL.Dot
+    Instance.new("UICorner", ToggleDot).CornerRadius = UDim.new(1, 0)
 
-    Pill.MouseButton1Click:Connect(function()
+    local btn = Instance.new("TextButton", Row)
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+
+    btn.MouseButton1Click:Connect(function()
         playClick()
         state[sharedKey] = not state[sharedKey]
-        refresh()
+        local st = state[sharedKey]
+        
+        TweenService:Create(ToggleDot, TweenInfo.new(0.2), {Position = st and UDim2.new(0, s(23), 0.5, -s(7)) or UDim2.new(0, s(3), 0.5, -s(7))}):Play()
+        TweenService:Create(ToggleBg, TweenInfo.new(0.2), {BackgroundColor3 = st and COL.ToggleBgOn or COL.ToggleBgOff}):Play()
+        TweenService:Create(Label, TweenInfo.new(0.2), {TextColor3 = st and COL.TextOn or COL.TextOff}):Play()
     end)
-
-    return Row
 end
 
 CreateToggleButton("TPWalk", "IsTPWalk", 1)
@@ -295,7 +223,7 @@ CreateToggleButton("Noclip", "IsNoclip", 2)
 CreateToggleButton("Fly", "IsFly", 3)
 
 local dragging, dragInput, dragStart, startPos
-HeaderFrame.InputBegan:Connect(function(input)
+MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
@@ -305,17 +233,17 @@ HeaderFrame.InputBegan:Connect(function(input)
         end)
     end
 end)
-HeaderFrame.InputChanged:Connect(function(input)
+MainFrame.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
         dragInput = input
     end
 end)
-UserInputService.InputChanged:Connect(function(input)
+table.insert(Shared.Connections[key], UserInputService.InputChanged:Connect(function(input)
     if input == dragInput and dragging then
         local delta = input.Position - dragStart
         MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-end)
+end))
 
 local FINAL_SIZE = UDim2.new(0, panelW, 0, panelH)
 MainFrame.Size = UDim2.new(0, 0, 0, 0)
